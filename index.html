@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chat Roulette</title>
+<style>
+:root{--bg:#f4f1ec;--sf:#fff;--tx:#1d1b18;--mu:#6d675e;--ac:#e5482d;--ac2:#fff;--bd:#ddd6ca;--vid:#16140f;--ok:#2a9d57;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12110f;--sf:#1e1c19;--tx:#f1ede6;--mu:#9b948a;--bd:#34302a;--vid:#000}}
+:root[data-theme="dark"]{--bg:#12110f;--sf:#1e1c19;--tx:#f1ede6;--mu:#9b948a;--bd:#34302a;--vid:#000}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.app{max-width:1100px;margin:0 auto;padding:14px;display:grid;gap:12px}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px}
+h1{font-size:20px;margin:0;letter-spacing:-.02em}
+.pill{font-size:13px;color:var(--mu);background:var(--sf);border:1px solid var(--bd);border-radius:99px;padding:4px 12px}
+.pill b{color:var(--ok)}
+.stage{display:grid;grid-template-columns:2fr 1fr;gap:12px}
+@media(max-width:760px){.stage{grid-template-columns:1fr}}
+.vbox{position:relative;background:var(--vid);border-radius:16px;overflow:hidden;aspect-ratio:16/10;border:1px solid var(--bd)}
+.stage .vbox.me{aspect-ratio:16/10}
+video{width:100%;height:100%;object-fit:cover;display:block;background:var(--vid)}
+.tag{position:absolute;left:10px;top:10px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;padding:3px 9px;border-radius:99px}
+.over{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;padding:20px;font-size:16px;background:rgba(0,0,0,.35);pointer-events:none}
+.over.hide{display:none}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:inherit;cursor:pointer;border:1px solid var(--bd);background:var(--sf);color:var(--tx);border-radius:12px;padding:10px 16px}
+button:hover{border-color:var(--mu)}
+button.pri{background:var(--ac);color:var(--ac2);border-color:var(--ac);font-weight:600}
+button.off{background:#b3261e;color:#fff;border-color:#b3261e}
+button:disabled{opacity:.45;cursor:not-allowed}
+.sp{flex:1}
+.chat{background:var(--sf);border:1px solid var(--bd);border-radius:16px;display:grid;grid-template-rows:140px auto}
+.msgs{overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.m{max-width:80%;padding:5px 10px;border-radius:12px;background:var(--bg);overflow-wrap:anywhere}
+.m.me{align-self:flex-end;background:var(--ac);color:var(--ac2)}
+.m.sys{align-self:center;background:none;color:var(--mu);font-size:13px}
+.cin{display:flex;gap:8px;padding:8px;border-top:1px solid var(--bd)}
+input[type=text],select{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:9px 11px;width:100%}
+.cin input{flex:1}
+.note{font-size:13px;color:var(--mu);background:var(--sf);border:1px dashed var(--bd);border-radius:12px;padding:10px 12px}
+.note.err{color:#b3261e;border-color:#b3261e}
+dialog{border:1px solid var(--bd);border-radius:18px;background:var(--sf);color:var(--tx);padding:0;width:min(440px,94vw);max-height:90vh}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+.sh{padding:16px 18px;display:grid;gap:12px}
+.sh h2{margin:0;font-size:18px}
+label{display:grid;gap:5px;font-size:13px;color:var(--mu)}
+.ck{display:flex;gap:9px;align-items:center;font-size:14px;color:var(--tx)}
+.ck input{width:18px;height:18px;accent-color:var(--ac)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mirror{transform:scaleX(-1)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>🎲 Chat Roulette</h1>
+    <span class="pill">Online: <b id="online">—</b></span>
+  </header>
+
+  <div id="banner" class="note" hidden></div>
+
+  <div class="stage">
+    <div class="vbox">
+      <video id="remote" autoplay playsinline></video>
+      <span class="tag" id="rtag">Stranger</span>
+      <div class="over" id="status">Press “Start”</div>
+    </div>
+    <div class="vbox me">
+      <video id="local" autoplay playsinline muted></video>
+      <span class="tag">You</span>
+    </div>
+  </div>
+
+  <div class="bar">
+    <button class="pri" id="start">▶ Start</button>
+    <button id="next" disabled>⏭ Next</button>
+    <button id="stop" disabled>■ Stop</button>
+    <span class="sp"></span>
+    <button id="mic" title="Microphone">🎤 On</button>
+    <button id="cam" title="Camera">📷 On</button>
+    <button id="cfg">⚙ Settings</button>
+  </div>
+
+  <div class="chat">
+    <div class="msgs" id="msgs"></div>
+    <div class="cin">
+      <input type="text" id="txt" placeholder="Message…" maxlength="500" disabled>
+      <button id="send" disabled>Send</button>
+    </div>
+  </div>
+  <div class="note">Connections are peer-to-peer (WebRTC). Strangers are everyone who currently has this page open and pressed “Start”. Be kind.</div>
+</div>
+
+<dialog id="dlg">
+  <div class="sh">
+    <h2>Settings</h2>
+    <label>Chat name<input type="text" id="name" maxlength="24" placeholder="Anonymous"></label>
+    <label>Camera<select id="camSel"></select></label>
+    <label>Microphone<select id="micSel"></select></label>
+    <div class="row2">
+      <label>Video quality<select id="res"><option value="360">360p</option><option value="480">480p</option><option value="720">720p</option><option value="1080">1080p</option></select></label>
+      <label>Frames/sec<select id="fps"><option value="15">15</option><option value="24">24</option><option value="30">30</option></select></label>
+    </div>
+    <label>Stranger’s volume<input type="range" id="vol" min="0" max="1" step="0.05" value="1"></label>
+    <label class="ck"><input type="checkbox" id="echo"> Echo cancellation</label>
+    <label class="ck"><input type="checkbox" id="ns"> Noise suppression</label>
+    <label class="ck"><input type="checkbox" id="agc"> Auto gain control</label>
+    <label class="ck"><input type="checkbox" id="mir"> Mirror my video</label>
+    <label class="ck"><input type="checkbox" id="aud"> Audio only (no video)</label>
+    <div class="bar"><span class="sp"></span><button class="pri" id="apply">Apply</button><button id="close">Close</button></div>
+  </div>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const DEF={name:'',cam:'',mic:'',res:'720',fps:'30',vol:1,echo:true,ns:true,agc:true,mir:true,aud:false};
+let cfg={...DEF};
+try{Object.assign(cfg,JSON.parse(localStorage.getItem('cr_cfg')||'{}'))}catch(e){}
+const saveCfg=()=>{try{localStorage.setItem('cr_cfg',JSON.stringify(cfg))}catch(e){}};
+
+const S={stream:null,pc:null,dc:null,room:null,me:null,state:'idle',partner:null,pending:[],bad:{},micOn:true,camOn:true,running:false,timer:null,pname:''};
+const ICE={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]};
+
+function setStatus(t){const o=$('status');o.textContent=t||'';o.classList.toggle('hide',!t)}
+function sys(t){addMsg(t,'sys')}
+function addMsg(t,cls,who){const d=document.createElement('div');d.className='m '+cls;d.textContent=who?who+': '+t:t;const b=$('msgs');b.appendChild(d);b.scrollTop=b.scrollHeight}
+function banner(t,err){const b=$('banner');b.hidden=!t;b.textContent=t||'';b.classList.toggle('err',!!err)}
+
+/* ---------- media ---------- */
+function constraints(){
+  const h=+cfg.res;
+  return{
+    video:cfg.aud?false:{deviceId:cfg.cam?{exact:cfg.cam}:undefined,width:{ideal:Math.round(h*16/9)},height:{ideal:h},frameRate:{ideal:+cfg.fps}},
+    audio:{deviceId:cfg.mic?{exact:cfg.mic}:undefined,echoCancellation:cfg.echo,noiseSuppression:cfg.ns,autoGainControl:cfg.agc}
+  };
+}
+async function startMedia(){
+  if(S.stream)S.stream.getTracks().forEach(t=>t.stop());
+  try{
+    S.stream=await navigator.mediaDevices.getUserMedia(constraints());
+  }catch(e){
+    S.stream=null;
+    banner('Can’t access the camera/microphone ('+(e.name||'error')+'). Allow access in your browser and make sure the device isn’t in use by another app. If the page is open in an embedded window, open it in a separate tab.',true);
+    return false;
+  }
+  banner('');
+  $('local').srcObject=S.stream;
+  applyFlags();
+  await listDevices();
+  if(S.pc){ // swap tracks on the current connection
+    S.stream.getTracks().forEach(t=>{const s=S.pc.getSenders().find(x=>x.track&&x.track.kind===t.kind);if(s)s.replaceTrack(t)});
+  }
+  return true;
+}
+function applyFlags(){
+  if(!S.stream)return;
+  S.stream.getAudioTracks().forEach(t=>t.enabled=S.micOn);
+  S.stream.getVideoTracks().forEach(t=>t.enabled=S.camOn);
+  $('mic').textContent=S.micOn?'🎤 On':'🎤 Off';$('mic').classList.toggle('off',!S.micOn);
+  $('cam').textContent=S.camOn?'📷 On':'📷 Off';$('cam').classList.toggle('off',!S.camOn);
+}
+async function listDevices(){
+  try{
+    const d=await navigator.mediaDevices.enumerateDevices();
+    const fill=(sel,kind,cur)=>{sel.innerHTML='';const o0=new Option('Default','');sel.add(o0);
+      d.filter(x=>x.kind===kind).forEach((x,i)=>sel.add(new Option(x.label||(kind==='videoinput'?'Camera ':'Microphone ')+(i+1),x.deviceId)));sel.value=cur||''};
+    fill($('camSel'),'videoinput',cfg.cam);fill($('micSel'),'audioinput',cfg.mic);
+  }catch(e){}
+}
+
+/* ---------- signaling via PeerJS (no server of your own) ---------- */
+/* The first person to open the page becomes the "hub" (a peer with a fixed ID) and matches everyone else.
+   If the hub closes their tab, another participant automatically takes over. */
+const HUB='crlt-hub-k7q2x9'; /* change to your own unique string */
+const net={list:[],pl:[],hs:[],conn:null,
+  peers(){return net.list},
+  on(t,fn){net.hs.push(fn)},
+  onPeers(fn){net.pl.push(fn)},
+  presence(p){net.st=p.st;if(net.conn&&net.conn.open)net.conn.send({k:'pres',st:p.st})},
+  emit(t,d){if(net.conn&&net.conn.open)net.conn.send({k:'sig',data:d});return Promise.resolve()}};
+let booted=null,retryT=null;
+function retry(){
+  clearInterval(net.pt);
+  if(retryT)return;
+  if(booted){booted.forEach(p=>{try{p.destroy()}catch(e){}});booted=null}
+  net.conn=null;net.list=[];$('online').textContent='—';net.pl.forEach(f=>f());
+  retryT=setTimeout(()=>{retryT=null;boot()},1000+Math.random()*2500);
+}
+function boot(){
+  const me=new Peer(undefined,{config:ICE});let hub=null,joined=false;
+  booted=[me];
+  me.on('error',()=>retry());
+  me.on('open',id=>{
+    S.me=id;
+    hub=new Peer(HUB,{config:ICE});booted.push(hub);
+    hub.on('open',()=>{runHub(hub);join(me)});
+    hub.on('error',e=>{if(!joined&&e.type==='unavailable-id'){joined=true;join(me)}else if(e.type!=='unavailable-id')retry()});
+  });
+}
+function join(me){
+  const c=me.connect(HUB,{reliable:true});
+  const t=setTimeout(()=>{if(!c.open)retry()},9000);
+  c.on('open',()=>{clearTimeout(t);net.conn=c;clearInterval(net.pt);net.pt=setInterval(()=>{if(c.open)c.send({k:'ping'})},3000);if(net.st)c.send({k:'pres',st:net.st});banner('')});
+  c.on('data',d=>{
+    if(d.k==='peers'){
+      net.list=d.list.map(x=>({peer:x.peer,isMe:x.peer===S.me,sameTab:x.peer===S.me,kind:'viewer',presence:{st:x.st}}));
+      $('online').textContent=net.list.length;net.pl.forEach(f=>f());
+    }else if(d.k==='sig')net.hs.forEach(f=>f({data:d.data,isMe:false,peer:d.from}));
+  });
+  c.on('close',()=>{clearTimeout(t);retry()});
+  c.on('error',()=>{clearTimeout(t);retry()});
+}
+function runHub(hub){
+  const conns=new Map();let bt=null;
+  const sw=setInterval(()=>{let ch=false;conns.forEach((v,id)=>{if(Date.now()-v.seen>15000){conns.delete(id);try{v.c.close()}catch(e){}ch=true}});if(ch)bc()},4000);
+  hub.on('close',()=>clearInterval(sw));
+  const bc=()=>{clearTimeout(bt);bt=setTimeout(()=>{
+    const list=[...conns].map(([id,v])=>({peer:id,st:v.st}));
+    conns.forEach(v=>{try{v.c.send({k:'peers',list})}catch(e){}});},80)};
+  hub.on('connection',c=>{
+    c.on('open',()=>{conns.set(c.peer,{c,st:'idle',seen:Date.now()});bc()});
+    c.on('data',d=>{
+      const v=conns.get(c.peer);if(!v||!d)return;v.seen=Date.now();
+      if(d.k==='pres'){v.st=d.st;bc()}
+      else if(d.k==='sig'&&d.data){const t=conns.get(d.data.to);if(t)try{t.c.send({k:'sig',from:c.peer,data:d.data})}catch(e){}}
+    });
+    const gone=()=>{if(conns.delete(c.peer))bc()};
+    c.on('close',gone);c.on('error',gone);
+  });
+}
+function initRoom(){
+  if(!window.Peer){banner('The PeerJS library failed to load. Check your internet connection and reload the page.',true);return}
+  S.room=net;
+  net.on('sig',onSig);
+  setInterval(search,1500);
+  boot();
+}
+const sendTo=(to,d)=>S.room&&S.room.emit('sig',{to,...d}).catch(()=>{});
+function setSt(s){S.state=s;S.room&&S.room.presence({st:s==='wait'?'wait':s==='idle'?'idle':'busy'});updateUI()}
+
+function search(){
+  if(S.state!=='wait'||!S.me)return;
+  const c=S.room.peers().filter(p=>!p.isMe&&p.kind==='viewer'&&p.presence&&p.presence.st==='wait'&&p.peer>S.me&&!(S.bad[p.peer]>Date.now()));
+  if(!c.length)return;
+  call(c[Math.floor(Math.random()*c.length)].peer);
+}
+
+function makePC(){
+  const pc=new RTCPeerConnection(ICE);
+  S.stream&&S.stream.getTracks().forEach(t=>pc.addTrack(t,S.stream));
+  pc.ontrack=e=>{$('remote').srcObject=e.streams[0]};
+  pc.onicecandidate=e=>{if(e.candidate)sendTo(S.partner,{t:'ice',c:e.candidate.toJSON()})};
+  pc.onconnectionstatechange=()=>{
+    if(pc!==S.pc)return;
+    if(pc.connectionState==='connected')onLive();
+    if(pc.connectionState==='failed'){sys('Connection lost');drop(true)}
+  };
+  pc.oniceconnectionstatechange=()=>{if(pc===S.pc&&S.state!=='live')setStatus('Connecting… ('+pc.iceConnectionState+')')};
+  pc.ondatachannel=e=>setDC(e.channel);
+  return pc;
+}
+function setDC(dc){
+  S.dc=dc;
+  dc.onopen=()=>{dc.send(JSON.stringify({t:'hello',name:cfg.name||'Anonymous'}));$('txt').disabled=false;$('send').disabled=false};
+  dc.onmessage=e=>{try{const m=JSON.parse(e.data);
+    if(m.t==='hello'){S.pname=String(m.name||'Anonymous').slice(0,24);$('rtag').textContent=S.pname}
+    else if(m.t==='msg')addMsg(String(m.text).slice(0,500),'',S.pname||'Stranger')}catch(_){}};
+  dc.onclose=()=>{$('txt').disabled=true;$('send').disabled=true};
+}
+function armTimeout(){clearTimeout(S.timer);S.timer=setTimeout(()=>{if(S.state==='calling'||S.state==='connecting'){if(S.partner)S.bad[S.partner]=Date.now()+30000;sys('Couldn’t connect ('+(S.pc?S.pc.iceConnectionState:'no answer')+'), trying someone else');drop(true)}},9000)}
+
+async function call(peer){
+  S.partner=peer;S.pending=[];setSt('calling');setStatus('Connecting…');armTimeout();
+  S.pc=makePC();setDC(S.pc.createDataChannel('chat'));
+  try{
+    const o=await S.pc.createOffer();await S.pc.setLocalDescription(o);
+    sendTo(peer,{t:'offer',sdp:S.pc.localDescription.toJSON?S.pc.localDescription.toJSON():{type:o.type,sdp:o.sdp}});
+  }catch(e){drop(true)}
+}
+async function onSig(m){
+  const d=m.data;if(!d||m.isMe||d.to!==S.me)return;
+  try{
+    if(d.t==='offer'){
+      if(S.state!=='wait'){sendTo(m.peer,{t:'bye'});return}
+      S.partner=m.peer;S.pending=[];setSt('connecting');setStatus('Connecting…');armTimeout();
+      S.pc=makePC();
+      await S.pc.setRemoteDescription(d.sdp);
+      flush();
+      const a=await S.pc.createAnswer();await S.pc.setLocalDescription(a);
+      sendTo(m.peer,{t:'answer',sdp:{type:a.type,sdp:a.sdp}});
+      return;
+    }
+    if(m.peer!==S.partner||!S.pc)return;
+    if(d.t==='answer'){await S.pc.setRemoteDescription(d.sdp);flush()}
+    else if(d.t==='ice'){S.pc.remoteDescription?S.pc.addIceCandidate(d.c).catch(()=>{}):S.pending.push(d.c)}
+    else if(d.t==='bye'){sys('Stranger left');drop(true)}
+  }catch(e){drop(true)}
+}
+function flush(){S.pending.splice(0).forEach(c=>S.pc.addIceCandidate(c).catch(()=>{}))}
+
+function onLive(){
+  clearTimeout(S.timer);setSt('live');setStatus('');
+  $('msgs').innerHTML='';sys('Stranger found. Say hi! 👋');
+}
+function closePC(){
+  clearTimeout(S.timer);
+  if(S.dc){try{S.dc.close()}catch(e){}S.dc=null}
+  if(S.pc){try{S.pc.close()}catch(e){}S.pc=null}
+  S.partner=null;S.pending=[];S.pname='';
+  $('remote').srcObject=null;$('rtag').textContent='Stranger';
+  $('txt').disabled=true;$('send').disabled=true;
+}
+function drop(search){
+  closePC();
+  if(search&&S.running){setSt('wait');setStatus('Looking for someone…')}
+  else{setSt('idle');setStatus('Press “Start”')}
+}
+
+/* ---------- controls ---------- */
+async function start(){
+    if(!S.stream&&!await startMedia())return;
+  if(!S.room)return;
+  S.running=true;setSt('wait');setStatus('Looking for someone…');
+}
+function next(){
+  if(S.partner)sendTo(S.partner,{t:'bye'});
+  closePC();S.running=true;setSt('wait');setStatus('Looking for someone…');
+}
+function stop(){
+  if(S.partner)sendTo(S.partner,{t:'bye'});
+  S.running=false;closePC();setSt('idle');setStatus('Press “Start”');
+}
+function updateUI(){
+  $('start').disabled=S.running;
+  $('next').disabled=!S.running;
+  $('stop').disabled=!S.running;
+}
+function sendChat(){
+  const v=$('txt').value.trim();
+  if(!v||!S.dc||S.dc.readyState!=='open')return;
+  S.dc.send(JSON.stringify({t:'msg',text:v}));addMsg(v,'me');$('txt').value='';
+}
+
+$('start').onclick=start;$('next').onclick=next;$('stop').onclick=stop;
+$('mic').onclick=()=>{S.micOn=!S.micOn;applyFlags()};
+$('cam').onclick=()=>{S.camOn=!S.camOn;applyFlags()};
+$('send').onclick=sendChat;
+$('txt').onkeydown=e=>{if(e.key==='Enter')sendChat()};
+$('vol').oninput=e=>{cfg.vol=+e.target.value;$('remote').volume=cfg.vol;saveCfg()};
+$('mir').onchange=e=>{cfg.mir=e.target.checked;$('local').classList.toggle('mirror',cfg.mir);saveCfg()};
+
+$('cfg').onclick=async()=>{
+  $('name').value=cfg.name;$('res').value=cfg.res;$('fps').value=cfg.fps;$('vol').value=cfg.vol;
+  ['echo','ns','agc','mir','aud'].forEach(k=>$(k).checked=!!cfg[k]);
+  if(!S.stream)await listDevices();
+  $('dlg').showModal();
+};
+$('close').onclick=()=>$('dlg').close();
+$('apply').onclick=async()=>{
+  cfg.name=$('name').value.trim();cfg.cam=$('camSel').value;cfg.mic=$('micSel').value;
+  cfg.res=$('res').value;cfg.fps=$('fps').value;
+  ['echo','ns','agc','mir','aud'].forEach(k=>cfg[k]=$(k).checked);
+  saveCfg();$('local').classList.toggle('mirror',cfg.mir);
+  $('dlg').close();
+  await startMedia();
+  if(S.pc&&cfg.aud)sys('“Audio only” will apply to your next stranger');
+};
+
+/* ---------- init ---------- */
+$('local').classList.toggle('mirror',cfg.mir);
+$('remote').volume=cfg.vol;
+if(!navigator.mediaDevices||!window.RTCPeerConnection)banner('Your browser doesn’t support WebRTC.',true);
+initRoom();
+updateUI();
+})();
+</script>
+</body>
+</html>
